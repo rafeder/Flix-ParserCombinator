@@ -4,11 +4,26 @@ use Char.isDigit
 
 type alias PResult = List[Char]
 
+///
+/// effect for the inner workings of a combined parser
+/// these effects specify exactly how the parser behaves
+/// while parsing
+///
 eff Parsing {
-    def satisfy(p : List[Char] -> Option[(Char, List[Char])]) : PResult
+
+    /// this effect handles the execution of atomic parsers
+    def satisfy(p : List[Char] -> Option[(List[Char], List[Char])]) : PResult
+    
+    /// this effect allows us to implement binary decision points
     def flip() : Bool
 }
 
+///
+/// effect for handling the result of the parsing process
+/// 
+/// here we define how to handle failure but also how to 
+/// combine the results from individual parsing steps
+///
 eff PStrategy {
     def fail() : PResult
     def join(lhs : PResult, rhs : PResult) : PResult
@@ -18,16 +33,23 @@ eff PStrategy {
 /// builds the behavior of a single character-parse from a predicate
 ///
 /// this is a helper function to easily construct parameters for the 
-/// Parsing.satisfy effect from a predicate
+/// Parsing.satisfy effect from a predicate, that only parse one symbol
 ///
 /// Returns a function that separates the head and tail of its input list in a tuple
 /// if the head satisfies the predicate
 ///
-def sat(predicate : Char -> Bool) : List[Char] -> Option[(Char, List[Char])] = 
+def sat(predicate : Char -> Bool) : List[Char] -> Option[(List[Char], List[Char])] = 
     input -> match input {
         case Nil => None
-        case x::xs => if(predicate(x)) Some((x,xs)) else None
+        case x::xs => if(predicate(x)) Some((x::Nil,xs)) else None
     }
+
+///
+/// constructs a parser that consumes no symbol and leaves the input untouched
+///
+/// returns a parser that decides L = {epsilon}
+def empty() : PResult \ Parsing = 
+    Parsing.satisfy(inp -> Some((Nil, inp)))
 
 ///
 /// constructs a parser that parses s as a singular symbol
@@ -53,10 +75,8 @@ def digit() : PResult \ Parsing =
 def letter() : PResult \ Parsing = 
     Parsing.satisfy(sat(isLetter))
 
-///always fails
-def pfail() : PResult \ Parsing =
-    Parsing.satisfy(sat(_ -> false))
-
+//TODO 
+// def toke(str : String) : PResult \ Parsing = 
 
 ///
 /// takes 2 parser left and right (both wrapped into lambdas to defer execution) 
@@ -76,7 +96,7 @@ def choice(left : Unit -> PResult \ Parsing, right : Unit -> PResult \ Parsing) 
 ///
 /// if p decides L then the resulting Parser decides L*
 ///
-def many(p : Unit -> PResult \ Parsing) : PResult \ Parsing = choice(_ -> many1(p), _ -> pfail())
+def many(p : Unit -> PResult \ Parsing) : PResult \ Parsing = choice(_ -> many1(p), empty)
 
 ///
 /// takes in a parser p (wrapped into a lambda to defer execution)
@@ -90,12 +110,13 @@ def runParser(input : List[Char]) : PResult \ PStrategy =
     region exec {
         let src = Ref.fresh(exec, input);
         run{
-            many(_ -> symbol('c'))
+            many(empty);
+            digit()
         }with handler Parsing {
             def satisfy(p, k) = 
                 match p(Ref.get(src)) {
                     case None => PStrategy.fail() 
-                    case Some((v, rest)) => {Ref.put(rest, src); PStrategy.join(v::Nil, k(Nil))} 
+                    case Some((v, rest)) => {Ref.put(rest, src); PStrategy.join(v, k(Nil))} 
                 }
             def flip(k) = 
                 let stash = Ref.get(src);
@@ -117,8 +138,8 @@ def main(): PResult \ IO =
     
 
     // TODO
-    // find a way to implement an empty parser
-    // by extension there needs to be a way to distinguish between succesfull parses and fails (both are signaled by empty list)
+    // deal with many(empty) situation
+    // there needs to be a way to distinguish between succesfull parses on empty lists and fails 
     // put parser in a module
     // build some examples
     // do test cases
