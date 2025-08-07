@@ -25,7 +25,11 @@ eff Parsing {
 /// combine the results from individual parsing steps
 ///
 eff PStrategy {
+
+    // triggered when parsing fails
     def fail() : PResult
+
+    // construct a result from two sequential parses
     def join(lhs : PResult, rhs : PResult) : PResult
 }
 
@@ -75,8 +79,14 @@ def digit() : PResult \ Parsing =
 def letter() : PResult \ Parsing = 
     Parsing.satisfy(sat(isLetter))
 
-//TODO 
-// def toke(str : String) : PResult \ Parsing = 
+
+def token(str : String) : PResult \ Parsing = 
+    let token = String.toList(str);
+    Parsing.satisfy(
+            input -> match (List.isPrefixOf(token, input)) {
+                case false => None
+                case true  => Some((token, List.drop(List.size(token), input)))
+        })
 
 ///
 /// takes 2 parser left and right (both wrapped into lambdas to defer execution) 
@@ -106,12 +116,30 @@ def many(p : Unit -> PResult \ Parsing) : PResult \ Parsing = choice(_ -> many1(
 ///
 def many1(p : Unit -> PResult \ Parsing) : PResult \ Parsing = {p(); many(p)}
 
+    // S -> EXPR OP EXPR 
+    // EXPR -> NUM | (S)
+    // OP -> + | * 
+    // NUM -> DIGIT | DIGIT NUM
+    // DIGIT -> 1 | 2 | ... | 9 | 0
+
+    // S -> EXPR OP EXPR -> NUM OP EXPR -> DIGIT OP EXPR -> 1 OP EXPR -> 1 OP 1 -> 1 + 1
+    def parseS() : PResult \ Parsing = {parseEXPR(); parseOP(); parseEXPR()}
+    def parseEXPR() : PResult \ Parsing = 
+        choice(
+            parseNUM,
+            _ -> {symbol('('); parseS() ;symbol(')')}
+        )
+    def parseOP() : PResult \ Parsing = choice(_ -> symbol('+'), _ -> symbol('*'))
+    def parseNUM() : PResult \ Parsing = many1(digit)
+
+
+
+
 def runParser(input : List[Char]) : PResult \ PStrategy = 
     region exec {
         let src = Ref.fresh(exec, input);
-        run{
-            many(empty);
-            digit()
+        let parsed = run{
+            parseS()
         }with handler Parsing {
             def satisfy(p, k) = 
                 match p(Ref.get(src)) {
@@ -122,13 +150,16 @@ def runParser(input : List[Char]) : PResult \ PStrategy =
                 let stash = Ref.get(src);
                 let eager = k(true);
                 if (eager != Nil) eager else {Ref.put(stash, src); k(false)} // muss hier != Nil oder kann man direkt an fail() knüpfen?
-        }
+        };
+        
+        if(Ref.get(src) == Nil) parsed else Nil
     }
 
 
 // The main entry point.
 def main(): PResult \ IO =
-    let src = '1'::'b'::'a'::'a'::'a'::Nil;
+    let str = "(1+2)*(5+2)";
+    let src = String.toList(str);
     run{
         runParser(src)
     }with handler PStrategy {
@@ -138,8 +169,7 @@ def main(): PResult \ IO =
     
 
     // TODO
-    // deal with many(empty) situation
-    // there needs to be a way to distinguish between succesfull parses on empty lists and fails 
+    // distinguish succesfull parse from parse that failed after reading a prefix
     // put parser in a module
     // build some examples
     // do test cases
