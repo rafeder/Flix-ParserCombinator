@@ -75,6 +75,7 @@ def digit() : PResult \ Parsing =
 /// constructs a parser that parses a letter
 ///
 /// returns a parser that that decides L = {A, B, ..., Z, a, b, ..., z}
+
 ///
 def letter() : PResult \ Parsing = 
     Parsing.satisfy(sat(isLetter))
@@ -92,7 +93,7 @@ def token(str : String) : PResult \ Parsing =
 /// takes 2 parser left and right (both wrapped into lambdas to defer execution) 
 /// and constructs from them a parser that applies left and/or right depending on the parsing strategy
 ///
-/// if left decide L1 and right decides L2 then the resulting Parser decides L1 + L2
+/// if left decide L1 and right decides L2 then the resulting Parser decides L1 | L2
 ///
 def choice(left : Unit -> PResult \ Parsing, right : Unit -> PResult \ Parsing) : PResult \ Parsing =
     let decision = Parsing.flip();
