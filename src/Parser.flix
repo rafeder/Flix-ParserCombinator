@@ -1,5 +1,7 @@
 
-pub type alias PResult = List[Char]
+pub type alias PSemantic = List[Char]
+
+pub type alias PResult = Result[Unit, PSemantic]
 
 ///
 /// Fffect for the inner workings of a parser combination.
@@ -31,9 +33,9 @@ eff PStrategy {
     //
     // At this stage the result will always be a recosntruction
     // of the input list. This could be adjusted to produce any intermediate result 
-    // of a syntax-directed defintion. This will become easier to work with 
+    // of a syntax-directed translation. This will become easier to work with 
     // once polymorphic effects have been introduced to flix.
-
+    
     def join(lhs : PResult, rhs : PResult) : PResult
 }
 
@@ -127,7 +129,7 @@ mod Parser {
     /// 
     /// If p decides L then the resulting parser decides L+.
     ///
-    pub def many1(p : Unit -> PResult \ Parsing) : PResult \ Parsing = {p(); many(p)}
+    pub def many1(p : Unit -> PResult \ Parsing) : PResult \ Parsing = {let _x = p(); many(p)}
 
     /// 
     /// This Function invokes a parser on a given input while handling the Parsing effects. The
@@ -137,7 +139,7 @@ mod Parser {
     /// Returns the reconstruction of the input in case of a sucessful parse. In any other case
     /// it returns None. 
     ///
-    pub def runParser(input : List[Char], parser : Unit -> PResult \ Parsing) : Option[PResult] \ PStrategy = 
+    pub def runParser(input : List[Char], parser : Unit -> PResult \ Parsing) : PResult \ PStrategy = 
         region exec {
             let src = Ref.fresh(exec, input);
             let parsed = run{
@@ -145,26 +147,34 @@ mod Parser {
             }with handler Parsing {
                 def satisfy(p, k) = 
                     match p(Ref.get(src)) {
-                        case None => {PStrategy.fail(); Nil} 
-                        case Some((v, rest)) => {Ref.put(rest, src); PStrategy.join(v, k(Nil))} 
+                        case None => PStrategy.fail()
+                        case Some((v, rest)) => {Ref.put(rest, src); PStrategy.join(Ok(v), k(Ok(Nil)))} 
                     }
                 def flip(k) = 
                     let stash = Ref.get(src);
                     let eager = k(true);
-                    if (eager != Nil) eager else {Ref.put(stash, src); k(false)} 
+                    match eager {
+                        case Ok(_t)  => eager
+                        case _       => {Ref.put(stash, src); k(false)}
+                    }
             };
-
-            if(Ref.get(src) == Nil) Some(parsed) else None
+            if(Ref.get(src)==Nil) parsed else Err()
         }
 
 
     // ???
-    pub def parse(input : String, parser : Unit -> PResult \ Parsing): Option[PResult] =
+    pub def parse(input : String, parser : Unit -> PResult \ Parsing): PResult =
         run{
             runParser(String.toList(input), parser)
         }with handler PStrategy {
-            def fail(k) = k(Nil) // here we can output information on failure
-            def join(lhs, rhs, k) = k(lhs ::: rhs)
+            def fail(k) = k(Err())
+            def join(lhs, rhs, k) = 
+                k(
+                    match (lhs, rhs) {
+                    case (Ok(l), Ok(r)) => Ok(l ::: r)
+                    case _ =>  Err() 
+                    }
+                )
         }    
 }
 
