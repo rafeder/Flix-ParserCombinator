@@ -1,10 +1,14 @@
 
 pub type alias PSemantic = List[Char]
 
-pub type alias PResult = Result[Unit, PSemantic]
+pub enum PResult with Eq, ToString{
+    case ParseOk(PSemantic),
+    case ParseComplete(PSemantic),
+    case ParseFail
+}
 
 ///
-/// Fffect for the inner workings of a parser combination.
+/// Effect for the inner workings of a parser combination.
 /// These effects specify exactly how the parser behaves
 /// while parsing.
 ///
@@ -40,6 +44,9 @@ eff PStrategy {
 }
 
 mod Parser {
+    use PResult.ParseComplete
+    use PResult.ParseOk
+    use PResult.ParseFail
 
     use Char.isLetter
     use Char.isDigit
@@ -114,6 +121,14 @@ mod Parser {
         if(decision) left() else right()
 
     ///
+    /// Takes two parsers "p1" and "p2" (wrapped into lambdas to defer effects)
+    /// Builds a parser that applies them consecutively. 
+    ///
+    /// If p1 decides L1 and p2 decides L2 the resulting Parser decides L1L2
+    ///
+    pub def seq(p1 : Unit -> PResult \ Parsing, p2 : Unit -> PResult \ Parsing) : PResult \ Parsing = {p1(); p2()}
+
+    ///
     /// Takes in a parser "p" (wrapped into a lambda to defer effects).
     /// Builds a parser that repeatedly applies p until it fails.
     ///
@@ -129,36 +144,39 @@ mod Parser {
     /// 
     /// If p decides L then the resulting parser decides L+.
     ///
-    pub def many1(p : Unit -> PResult \ Parsing) : PResult \ Parsing = {let _x = p(); many(p)}
+    pub def many1(p : Unit -> PResult \ Parsing) : PResult \ Parsing = seq(p, _ -> many(p))
 
     /// 
     /// This Function invokes a parser on a given input while handling the Parsing effects. The
     /// function itself is effectful in terms of how the parsing result is produced, and will need
     /// to be handled accordingly. 
     ///
-    /// Returns the reconstruction of the input in case of a sucessful parse. In any other case
-    /// it returns None. 
+    /// Returns ...
     ///
     pub def runParser(input : List[Char], parser : Unit -> PResult \ Parsing) : PResult \ PStrategy = 
         region exec {
             let src = Ref.fresh(exec, input);
-            let parsed = run{
+            let parsed =  run{
                 parser()
             }with handler Parsing {
                 def satisfy(p, k) = 
                     match p(Ref.get(src)) {
                         case None => PStrategy.fail()
-                        case Some((v, rest)) => {Ref.put(rest, src); PStrategy.join(Ok(v), k(Ok(Nil)))} 
+                        case Some((v, rest)) => {Ref.put(rest, src); PStrategy.join(ParseOk(v), k(ParseOk(Nil)))} 
                     }
                 def flip(k) = 
                     let stash = Ref.get(src);
                     let eager = k(true);
                     match eager {
-                        case Ok(_t)  => eager
-                        case _       => {Ref.put(stash, src); k(false)}
+                        case ParseFail => {Ref.put(stash, src); k(false)}
+                        case _         => eager
                     }
             };
-            if(Ref.get(src)==Nil) parsed else Err()
+
+            match (parsed, Ref.get(src)) {
+                case (ParseOk(s), Nil)  => ParseComplete(s)
+                case _                  => parsed 
+            }
         }
 
 
@@ -167,12 +185,13 @@ mod Parser {
         run{
             runParser(String.toList(input), parser)
         }with handler PStrategy {
-            def fail(k) = k(Err())
+            def fail(k) = k(ParseFail)
             def join(lhs, rhs, k) = 
                 k(
                     match (lhs, rhs) {
-                    case (Ok(l), Ok(r)) => Ok(l ::: r)
-                    case _ =>  Err() 
+                    case (ParseOk(l), ParseOk(r))    => ParseOk(l ::: r)
+                    //case (ParseOk(l), ParseFail)     => ParseOk(l) 
+                    case _                           => ParseFail
                     }
                 )
         }    
