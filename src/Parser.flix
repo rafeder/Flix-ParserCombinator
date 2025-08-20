@@ -188,7 +188,6 @@ mod Parser {
                 k(
                     match (lhs, rhs) {
                     case (ParseOk(l), ParseOk(r))    => ParseOk(l ::: r)
-                    //case (ParseFail, ParseOk(r))     => ParseOk(r) 
                     case _                           => ParseFail
                     }
                 )

@@ -311,9 +311,9 @@ mod TestParser {
 
     @Test
     def seq05 : Bool = 
-        let input = "aaa";
+        let input = "aa";
         let actual = parse(input, _ -> seq(_ -> many1(letter), letter));
-        let expected = PResult.ParseFail;
+        let expected = PResult.ParseComplete('a'::'a'::Nil);
         Assert.eq(expected, actual)
 
     @Test
