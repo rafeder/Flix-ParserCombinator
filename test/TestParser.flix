@@ -1,4 +1,3 @@
-/*
 mod TestParser {
     use Parser.{parse, empty, symbol, digit, letter,
                 token, choice, many, many1, seq}
@@ -223,7 +222,7 @@ mod TestParser {
     def mange(p : Unit -> PResult \ Parsing) : PResult \ Parsing = choice(_ -> many1(p), empty)
     @Test
     def many01 : Bool = 
-        let input = "a";
+        let input = "aaa";
         let actual = parse(input, _ -> mange(letter)); 
         let expected = PResult.ParseComplete('a'::'a'::'a'::Nil);
         Assert.eq(expected, actual)    
@@ -338,4 +337,4 @@ mod TestParser {
         let actual = parse(input, _ -> seq(letter, _ -> choice(letter, digit)));
         let expected = PResult.ParseComplete('a'::'2'::Nil);
         Assert.eq(expected, actual)
-}*/
+}
