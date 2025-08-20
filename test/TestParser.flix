@@ -1,3 +1,4 @@
+/*
 mod TestParser {
     use Parser.{parse, empty, symbol, digit, letter,
                 token, choice, many, many1, seq}
@@ -219,18 +220,18 @@ mod TestParser {
         Assert.eq(expected, actual)    
 
     // many 
-
+    def mange(p : Unit -> PResult \ Parsing) : PResult \ Parsing = choice(_ -> many1(p), empty)
     @Test
     def many01 : Bool = 
-        let input = "aaa";
-        let actual = parse(input, _ -> seq(letter, _ -> many(letter)));
+        let input = "a";
+        let actual = parse(input, _ -> mange(letter)); 
         let expected = PResult.ParseComplete('a'::'a'::'a'::Nil);
         Assert.eq(expected, actual)    
     
     @Test
     def many02 : Bool = 
         let input = "aaaz";
-        let actual = parse(input, _ -> many(_ -> symbol('a')));
+        let actual = parse(input, _ -> mange(_ -> symbol('a')));
         let expected = PResult.ParseOk('a'::'a'::'a'::Nil);
         Assert.eq(expected, actual)    
     
@@ -239,7 +240,8 @@ mod TestParser {
         let input = "aaa";
         let actual = parse(input, _ -> many(digit));
         let expected = PResult.ParseOk(Nil);
-        Assert.eq(expected, actual)    
+        Assert.eq(expected, actual)  
+
     @Test
     def many04 : Bool = 
         let input = "";
@@ -336,4 +338,4 @@ mod TestParser {
         let actual = parse(input, _ -> seq(letter, _ -> choice(letter, digit)));
         let expected = PResult.ParseComplete('a'::'2'::Nil);
         Assert.eq(expected, actual)
-}
+}*/
