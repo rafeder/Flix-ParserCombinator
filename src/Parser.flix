@@ -9,6 +9,7 @@ pub enum PResult with Eq, ToString{
 
 ///
 /// Effect for the inner workings of a parser combination.
+///
 /// These effects specify exactly how the parser behaves
 /// while parsing.
 ///
@@ -19,6 +20,8 @@ eff Parsing {
     
     /// This effect allows us to implement binary decision points.
     def flip() : Bool
+
+    def message(msg : String) : Unit
 }
 
 ///
@@ -71,34 +74,43 @@ mod Parser {
     ///
     /// Returns a parser that decides L = {\epsilon}.
     ///
-    pub def empty() : PResult \ Parsing = Parsing.satisfy(inp -> Some((Nil, inp)))
+    pub def empty() : PResult \ Parsing = 
+        Parsing.message("applying empty");
+        Parsing.satisfy(inp -> Some((Nil, inp)))
 
     ///
     /// Constructs a parser that parses s as a singular symbol.
     ///
     /// Returns a parser that decides L = {s}.
     ///
-    pub def symbol(s : Char) : PResult \ Parsing = Parsing.satisfy(sat(c -> c == s))
+    pub def symbol(s : Char) : PResult \ Parsing = 
+        Parsing.message("applying symbol(${s})");
+        Parsing.satisfy(sat(c -> c == s))
 
     ///
     /// Constructs a parser that parses a digit. 
     ///
     /// Returns a parser that that decides L = {0, 1, ..., 9}.
     ///
-    pub def digit() : PResult \ Parsing = Parsing.satisfy(sat(isDigit))
+    pub def digit() : PResult \ Parsing = 
+        Parsing.message("applying digit");
+        Parsing.satisfy(sat(isDigit))
 
     ///
     /// Constructs a parser that parses a letter.
     ///
     /// Returns a parser that that decides L = {A, B, ..., Z, a, b, ..., z}.
     ///
-    pub def letter() : PResult \ Parsing = Parsing.satisfy(sat(isLetter))
+    pub def letter() : PResult \ Parsing = 
+        Parsing.message("applying letter");
+        Parsing.satisfy(sat(isLetter))
 
     /// Constructs a parser that parses an entire string in a singel step.
     ///
     /// Returns a parser that decides L = {str}.
     ///
     pub def token(str : String) : PResult \ Parsing = 
+        Parsing.message("applying token(${str})");
         let token = String.toList(str);
         Parsing.satisfy(
                 input -> match (List.isPrefixOf(token, input)) {
@@ -113,8 +125,9 @@ mod Parser {
     /// If left decides L1 and right decides L2 then the resulting Parser decides L1 | L2.
     ///
     pub def choice(left : Unit -> PResult \ Parsing, right : Unit -> PResult \ Parsing) : PResult \ Parsing =
-        let decision = Parsing.flip();
-        if(decision) left() else right()
+        Parsing.message("applying choice");
+        let heads = Parsing.flip();
+        if(heads) left() else right()
 
     ///
     /// Takes two parsers "p1" and "p2" (wrapped into lambdas to defer effects)
@@ -122,7 +135,9 @@ mod Parser {
     ///
     /// If p1 decides L1 and p2 decides L2 the resulting Parser decides L1L2
     ///
-    pub def seq(p1 : Unit -> PResult \ Parsing, p2 : Unit -> PResult \ Parsing) : PResult \ Parsing = {p1(); p2()}
+    pub def seq(p1 : Unit -> PResult \ Parsing, p2 : Unit -> PResult \ Parsing) : PResult \ Parsing = 
+        Parsing.message("applying seq");
+        {p1(); p2()}
 
     ///
     /// Takes in a parser "p" (wrapped into a lambda to defer effects).
@@ -133,7 +148,8 @@ mod Parser {
     /// Note that this parser can never fail. 
     ///
     pub def many(p : Unit -> PResult \ Parsing) : PResult \ Parsing = 
-        let _ = Parsing.flip();
+        Parsing.message("applying many");
+        //let _ = Parsing.flip();
         choice(_ -> many1(p), empty)
 
     ///
@@ -142,7 +158,9 @@ mod Parser {
     /// 
     /// If p decides L then the resulting parser decides L+.
     ///
-    pub def many1(p : Unit -> PResult \ Parsing) : PResult \ Parsing = seq(p, _ -> many(p))
+    pub def many1(p : Unit -> PResult \ Parsing) : PResult \ Parsing = 
+        Parsing.message("applying many1");
+        seq(p, _ -> many(p))
 
     /// 
     /// This Function invokes a parser on a given input while handling the Parsing effects. The
@@ -151,24 +169,28 @@ mod Parser {
     ///
     /// Returns ...
     ///
-    pub def runParser(input : List[Char], parser : Unit -> PResult \ Parsing) : PResult \ PStrategy = 
+    pub def runParser(input : List[Char], parser : Unit -> PResult \ Parsing) : PResult \ {IO, PStrategy} = 
         region exec {
             let src = Ref.fresh(exec, input);
             let parsed =  run{
                 parser()
             }with handler Parsing {
                 def satisfy(p, k) = 
+                    let _ = println("attempting parse on ${Ref.get(src)}");
                     match p(Ref.get(src)) {
                         case None => PStrategy.fail()
-                        case Some((v, rest)) => Ref.put(rest, src); PStrategy.join(ParseOk(v), k(ParseOk(Nil)))
+                        case Some((v, rest)) => println("succesfull parse of ${v}"); Ref.put(rest, src); PStrategy.join(ParseOk(v), k(ParseOk(Nil)))
                     }
+                    
                 def flip(k) = 
                     let stash = Ref.get(src);
                     let eager = k(true);
                     match eager {
-                        case ParseFail => Ref.put(stash, src); k(false)
+                        case ParseFail => {println("failed! backtracking..."); Ref.put(stash, src); k(false)}
                         case _         => eager
                     }
+                
+                def message(str, k) = {println(str); k()}
             };
 
             match (parsed, Ref.get(src)) {
@@ -179,7 +201,7 @@ mod Parser {
 
 
     // ???
-    pub def parse(input : String, parser : Unit -> PResult \ Parsing): PResult =
+    pub def parse(input : String, parser : Unit -> PResult \ Parsing): PResult \ IO=
         run{
             runParser(String.toList(input), parser)
         }with handler PStrategy {

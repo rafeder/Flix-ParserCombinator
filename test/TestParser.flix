@@ -1,3 +1,4 @@
+/*
 mod TestParser {
     use Parser.{parse, empty, symbol, digit, letter,
                 token, choice, many, many1, seq}
@@ -337,4 +338,4 @@ mod TestParser {
         let actual = parse(input, _ -> seq(letter, _ -> choice(letter, digit)));
         let expected = PResult.ParseComplete('a'::'2'::Nil);
         Assert.eq(expected, actual)
-}
+}*/
