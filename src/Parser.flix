@@ -1,15 +1,28 @@
 
-//eff Amb {
-//    def flip() : Bool
-//}
-
+/// Type of the semantic of the program to be parsed.
 type alias Sem = List[Char]
-type alias PResult = Result[Unit, Sem]
 
+/// Type produced by atmomic and combined parsers.
+pub type alias PResult = Result[Unit, Sem]
+
+/// Effect to handle the parsing process
 eff Parse {
+
+    /// Is triggered whenever an atomic parser is called. 
+    /// A Handler should take care of adjusting the input to the 
+    /// postfix left unparsed, as well as constructing semantics from
+    /// the symbol that was parsed.
     def sat(p : (Char -> Bool)) : PResult
+
+    /// Special effect for an empty parser (accepting \epsilon), similar to
+    /// sat effect, but warrants a different effect, as the input is always left untouched
+    /// and a parse of epsilon can never fail.
     def empty() : PResult
+    
+    /// Effect to handle decisions in the parsing process. Handlers of this effect can 
+    /// implement different parsing-strategies like eager and echaustive.
     def flip() : Bool
+
     def log(msg : String) : Unit
 }
 
@@ -18,34 +31,34 @@ mod Parser{
     use Char.isLetter
 
     ///
-    /// Constructs a parser that consumes no symbol and leaves the input unchanged.
+    /// Constructs an atomic parser that consumes no symbol and leaves the input unchanged.
     ///
     /// Returns a parser that decides L = {\epsilon}.
     ///
     pub def empty() : PResult \ Parse = Parse.empty()
 
     ///
-    /// Constructs a parser that parses s as a singular symbol.
+    /// Constructs aan atomic parser that parses s as a singular symbol.
     ///
     /// Returns a parser that decides L = {s}.
     ///
     pub def symbol(x :  Char) : PResult \ Parse = Parse.sat(c -> x == c)
 
     ///
-    /// Constructs a parser that parses a letter.
+    /// Constructs an atomic parser that parses a letter.
     ///
     /// Returns a parser that that decides L = {A, B, ..., Z, a, b, ..., z}.
     ///
     pub def letter() : PResult \ Parse = Parse.sat(isLetter)
 
     ///
-    /// Constructs a parser that parses a digit. 
+    /// Constructs an atomic parser that parses a digit. 
     ///
     /// Returns a parser that that decides L = {0, 1, ..., 9}.
     ///
     pub def digit() : PResult \ Parse = Parse.sat(isDigit)
 
-    /// Constructs a parser that parses an entire string in a singel step.
+    /// Constructs a parser-combinator that parses an entire string in a singel step.
     ///
     /// Returns a parser that decides L = {str}.
     ///
@@ -59,7 +72,7 @@ mod Parser{
         }
 
     ///
-    /// Takes two parser "left" and "right" (both wrapped into lambdas to defer effects). 
+    /// Parser-Combinator that takes two parser "left" and "right" (both wrapped into lambdas to defer effects). 
     /// Constructs from them a parser that applies left and/or right according to the parsing strategy.
     ///
     /// If left decides L1 and right decides L2 then the resulting Parser decides L1 | L2.
@@ -69,8 +82,8 @@ mod Parser{
         if(heads) l() else r()
 
     ///
-    /// Takes two parsers "p1" and "p2" (wrapped into lambdas to defer effects)
-    /// Builds a parser that applies them consecutively. 
+    /// Parser-combinator that takes two parsers "p1" and "p2" (wrapped into lambdas to defer effects) 
+    /// and builds fromt them a parser that applies them consecutively. 
     ///
     /// If p1 decides L1 and p2 decides L2 the resulting Parser decides L1L2
     ///
@@ -79,7 +92,7 @@ mod Parser{
         {discard(a()); b()}
 
     ///
-    /// Takes in a parser "p" (wrapped into a lambda to defer effects).
+    /// Parser-combinator that takes in a parser "p" (wrapped into a lambda to defer effects).
     /// Builds a parser that repeatedly applies p until it fails.
     ///
     /// If p decides L then the resulting Parser decides L*.
@@ -91,7 +104,7 @@ mod Parser{
         choice(_ -> many1(a), _ -> empty())
 
     ///
-    /// Takes in a parser "p" (wrapped into a lambda to defer effects).
+    /// Parser-combinator that takes in a parser "p" (wrapped into a lambda to defer effects).
     /// Builds a parser that repeatedly applies p until it fails, but at least once. 
     /// 
     /// If p decides L then the resulting parser decides L+.
@@ -100,33 +113,62 @@ mod Parser{
             Parse.log("applying many1");
             seq(a, _ -> many(a))
 
+    ///
+    /// This is the main function to apply a parser to an input.
+    /// Additionally the parsed string will be converted into some program semantic.
+    ///
+    /// input : the input String to be parsed
+    /// parser : parser function to be applied to the input
+    /// transform: unary function to cast a single parsed char into a semantic values
+    /// op : operation to combine 2 semantic values (that were parsed in sequence) into one
+    /// e : neutral element of the semantic values such that x `op` e = x
+    ///
+    /// Will return the semantics of the input according to the parser, or
+    /// an error if the input is not in the language accepted by the parser
+    ///
+    pub def invokeParser(input : String, parser : Unit -> PResult \ Parse, transform : Char -> Sem, op : (Sem, Sem) -> Sem, e : Sem): PResult =   
+        
+        /// acts as the zero element for our fold over the atomic semantic elements 
+        def zero(rest : List[Char]) : PResult = if(rest == Nil) Ok(e) else Err();
+        
+        /// acts as the fold funciton over the atomice semantic elements
+        def <<(a : PResult, b : PResult) : PResult = 
+            match (a, b) {
+                case (Ok(l), Ok(r)) => Ok(l `op` r)
+                case _              => Err()
+            };
 
-
-    def join(a : PResult, b : PResult) : PResult = 
-        match (a, b) {
-            case (Ok(l), Ok(r)) => Ok(l ::: r)
-            case _              => Err()
-        }
-    
-    def base(rest : List[Char]) : PResult = if(rest == Nil) Ok(Nil) else Err()
-
-    // The main parsing dunction
-    pub def invokeParser(input : String, parser : Unit -> PResult \ Parse): PResult \ IO =       
         region exec {
+            // src reference will hold the unparsed rest of the input string
             let src = Ref.fresh(exec, String.toList(input));
             run{
                     parser()
                 }with handler Parse {
+
+                    /// this effect applies an atomic parser to the referenz holding the unconsumed input
                     def sat(p, k) = 
                         match Ref.get(src) {
-                            case Nil     => Err()
-                            case x::xs   => if(p(x)) {Ref.put(xs, src); join(Ok(x::Nil), k(base(Ref.get(src))))} else Err()
+                            case Nil     => Err() // parse in empty rest
+                            case x::xs   => if(p(x)) 
+                                                // sucessful parse
+                                                // we combine the semantics of the continuation with the 
+                                                // semantics of the symbol that was just parsed.
+                                                // This creates a pattern similar to a folgright
+                                                {Ref.put(xs, src); (Ok(transform(x)) << k(zero(Ref.get(src))))} 
+                                            else 
+                                                Err() // parser could not accept next symbol
                         }
-                    def empty(k) = join(Ok(Nil), k(base(Ref.get(src))))
+                    
+                    def empty(k) = (Ok(e) << k(zero(Ref.get(src))))
+
+                    /// This represents an eager parsing strategy were at any decision point we 
+                    /// arbitrarily choose one option and only evaluate the second option if the 
+                    /// first one fails.
                     def flip(k) = 
                         let stash = Ref.get(src);
                         let left = k(true);
                         if(left != Err()) left else {Ref.put(stash, src); k(false)}
+                    
                     def log(_msg, k) = k()//{println(msg); k()}
                 }
         }
