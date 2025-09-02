@@ -1,6 +1,6 @@
 [package]
 name        = "ParserCombinators"
-description = "test"
+description = "Parser combinator library using algebraic effects and handlers."
 version     = "0.1.0"
 flix        = "0.60.0"
-authors     = ["John Doe <john@example.com>"]
+authors     = ["Rasmus Eder"]

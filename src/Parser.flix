@@ -22,8 +22,6 @@ eff Parse {
     /// Effect to handle decisions in the parsing process. Handlers of this effect can 
     /// implement different parsing-strategies like eager and echaustive.
     def flip() : Bool
-
-    def log(msg : String) : Unit
 }
 
 mod Parser{
@@ -88,7 +86,6 @@ mod Parser{
     /// If p1 decides L1 and p2 decides L2 the resulting Parser decides L1L2
     ///
     pub def seq(a : Unit -> PResult \ Parse, b : Unit -> PResult \ Parse) : PResult \ Parse = 
-        Parse.log("applying seq");
         {discard(a()); b()}
 
     ///
@@ -100,7 +97,6 @@ mod Parser{
     /// Note that this parser can never fail. 
     ///
     pub def many(a : Unit -> PResult \ Parse) : PResult \ Parse = 
-        Parse.log("applying many");
         choice(_ -> many1(a), _ -> empty())
 
     ///
@@ -110,7 +106,6 @@ mod Parser{
     /// If p decides L then the resulting parser decides L+.
     ///
     pub def many1(a : Unit -> PResult \ Parse) : PResult \ Parse = 
-            Parse.log("applying many1");
             seq(a, _ -> many(a))
 
     ///
@@ -168,8 +163,6 @@ mod Parser{
                         let stash = Ref.get(src);
                         let left = k(true);
                         if(left != Err()) left else {Ref.put(stash, src); k(false)}
-                    
-                    def log(_msg, k) = k()//{println(msg); k()}
                 }
         }
 }
