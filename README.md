@@ -48,7 +48,7 @@ For context free grammar we construct a parser for each non-terminal:
 // Z -> 0Z | 0
 // Q -> 1Q | 1
 
-def parseS() : PResult \ Parse = choice(_ -> parseZ(), _ -> parseQ())
+def parseS() : PResult \ Parse = seq(_ -> parseZ(), _ -> parseQ())
 
 def parseZ() : PResult \ Parse =
     choice(
