@@ -37,6 +37,10 @@ eff Parse {
     /// Effect to handle decisions in the parsing process. Handlers of this effect can 
     /// implement different parsing-strategies like eager and echaustive.
     def flip() : Bool
+
+    /// workaround for a bug where the continuation is not applied correctly 
+    /// without another call to the parse effect
+    def poke() : Unit
 }
 
 mod Parser{
@@ -112,6 +116,7 @@ mod Parser{
     /// Note that this parser can never fail. 
     ///
     pub def many(a : Unit -> PResult \ Parse) : PResult \ Parse = 
+        Parse.poke(); // workaroud: without another call to Parse effect the continuations are wrong -> bug? 
         choice(_ -> many1(a), _ -> empty())
 
     ///
@@ -178,6 +183,8 @@ mod Parser{
                         let stash = Ref.get(src);
                         let left = k(true);
                         if(left != Err()) left else {Ref.put(stash, src); k(false)}
+
+                    def poke(k) = k()
                 }
         }
 }
