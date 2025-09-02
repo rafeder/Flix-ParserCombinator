@@ -11,28 +11,28 @@ Although the library is complete and functional, this project is more of an expe
 The library provides higher order parsers that can be combined in order to build recursive-decent parsers. Note that this generally confines the capabilites of the parser to context free languages. Additionally when closely aligning the parser construction with an existing grammar, the grammar can not be ambiguous or contain left recursive productions!
 
 The difference between this library and most parser combinator libraries it that it uses side effects and appropriate handlers instead of monads to facilitate the combination of higher order parsers. [Hutton, Graham, and Erik Meijer. "Monadic parser combinators." (2011)](https://cspages.ucalgary.ca/~robin/class/521/class-handout.pdf#page=282)
- provides a great introduction into the concepts of parser combinators. A comprehensive tutorial on to the concept of algebraic handlers and their usage can be found in [Pretnar, Matija. "An introduction to algebraic effects and handlers. invited tutorial paper." (2015)](https://www.eff-lang.org/handlers-tutorial.pdf). Generally parser-combinators are a popular example for possible application of algebraic effects. This project is mostly inspired by the works in [Xie, Ningning, and Daan Leijen. "Effect handlers in Haskell, evidently." (2020)](https://xnning.github.io/papers/haskell-evidently.pdf) and [Lindley, Sam. "Algebraic effects and effect handlers for idioms and arrows." (2014)](https://homepages.inf.ed.ac.uk/slindley/papers/aeia.pdf).
+ provides a great introduction into the concepts of parser combinators. A comprehensive tutorial on to the concept of algebraic handlers and their usage can be found in [Pretnar, Matija. "An introduction to algebraic effects and handlers. invited tutorial paper." (2015)](https://www.eff-lang.org/handlers-tutorial.pdf). Generally parser-combinators are a popular example for possible application of algebraic effects. This project is mostly inspired by the approaches in [Xie, Ningning, and Daan Leijen. "Effect handlers in Haskell, evidently." (2020)](https://xnning.github.io/papers/haskell-evidently.pdf) and [Lindley, Sam. "Algebraic effects and effect handlers for idioms and arrows." (2014)](https://homepages.inf.ed.ac.uk/slindley/papers/aeia.pdf).
 
- Other similar projects can be found here:
+ Projects similar to this one can be found here:
 - [Flix parser combinators library](https://github.com/jaschdoc/flix-parsers)
 - [Koka Parser example](https://github.com/koka-lang/koka/blob/dev/samples/handlers/parser.kk)
 
 # Usage
 
-Te library provides some atomic parsers that consume a singular character.
+The library provides some atomic parsers that accept a singular character.
 
 - `symbol(x)` - accepts the char 'x'
 - `letter()`- accepts any letter
 - `digit()` - accepts any digit
 
-The `Parse.sat` effect can easily be used to create custom parsers. It takes in a predicate (Char -> Bool) as a parameter to decide a language where every word is exactly one character.
+The `Parse.sat` effect can easily be used to create custom parsers. It takes in a predicate (Char -> Bool) as a parameter to decide a language that contains all the single character words that satisfy the predicate.
 
-Alongside the atomic parser we have menas to combine them to inductively build more complex parsers that accept more complex languages.
+Alongside the atomic parser we have means to combine them to inductively build more complex parsers that accept more complex languages.
 
 - `choice(p1, p2)` - accepts the union of the languages accepted by p1 and p2
 - `seq(p1, p2)` - accepts the concatenation of the languages accepted by p1 and p2
 - `many(p)` - accepts the Kleene closure of p
-- `many1(p)` - accepts any amount greater than one of repititive concatenation of a language to itself
+- `many1(p)` - accepts any amount greater than one of repititive concatenation of language p to itself
 
 The construction of parsers is then similar to the construction of regular expressions or context free grammars. The combination of parser works almost identically to the inductive definition of regular expressions:
 
