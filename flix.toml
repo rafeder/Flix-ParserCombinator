@@ -3,4 +3,4 @@ name        = "ParserCombinators"
 description = "Parser combinator library using algebraic effects and handlers."
 version     = "0.1.0"
 flix        = "0.60.0"
-authors     = ["Rasmus Eder"]
+authors     = ["rafeder"]
